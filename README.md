@@ -1,4 +1,6 @@
-# MM4_2401FTDS-Anime-Recommender-App
-Welcome to the MM4_2401FTDS-Anime-Recommender-App repository! This project showcases an end-to-end anime recommender system built using both collaborative filtering and content-based approaches. The system is designed to predict how a user will rate an anime title they haven't yet viewed, based on their historical preferences. 
+## Project Overview <a class="anchor" id="project-description"></a>
 
-This app is deployed using Streamlit, providing an interactive and user-friendly interface for making recommendations. Users can input their preferences and receive tailored anime suggestions instantly.
+DataMinds team has been hired as data science consultants for a news outlet to create classification models using Python and deploy it as a web application with Streamlit. 
+The aim is to improve content categorization for Frontier Times by developing machine learning models to classify articles into categories based on content.  This repository contains the code for the final deployment of the application. The primary stakeholders for the news classification project for the news outlet could include the editorial team, IT/tech support, management, readers, etc. These groups are interested in improved content categorization, operational efficiency, and enhanced user experience.
+
+The application is available at: https://frontier-times.streamlit.app/
