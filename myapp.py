@@ -1,12 +1,17 @@
 import streamlit as st
 import pandas as pd
+import gdown
+import zipfile
 from PIL import Image
 import os
 import gzip
 import pickle
 import dask.array as da
 from fuzzywuzzy import fuzz
-import zipfile
+from io import BytesIO
+from joblib import load, dump
+import boto3
+from botocore.exceptions import NoCredentialsError
 
 # Define a function to load images
 def load_image(image_path):
@@ -24,15 +29,13 @@ img5 = load_image(os.path.join(images_path, 'img5.jpeg'))
 data_path = os.path.join(os.getcwd(), 'Data')
 
 @st.cache_data
-def load_data(file_name, dtype=None, sample_size=None, random_state=42):
-    zip_path = os.path.join(data_path, f'{file_name}.zip')
-    extract_to = data_path
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_to)
-    
-    csv_path = os.path.join(extract_to, f'{file_name}.csv')
-    df = pd.read_csv(csv_path, dtype=dtype)
-    
+def load_data(file, dtype=None, sample_size=None, random_state=42):
+    # Extract the zip file if it exists
+    if file.endswith('.zip'):
+        with zipfile.ZipFile(file, 'r') as zip_ref:
+            zip_ref.extractall(data_path)
+        file = file.replace('.zip', '.csv')
+    df = pd.read_csv(file, dtype=dtype)
     if sample_size:
         return df.sample(n=sample_size, random_state=random_state)
     return df
@@ -43,35 +46,62 @@ dtype_anime = {
 }
 
 # Load sampled anime and train datasets
-anime = load_data('anime', dtype=dtype_anime, sample_size=1000)
-train = load_data('train', sample_size=50000)
+anime = load_data(os.path.join(data_path, 'anime.zip'), dtype=dtype_anime, sample_size=1000)
+train = load_data(os.path.join(data_path, 'train.zip'), sample_size=50000)
 
+# Initialize the S3 client
+s3_client = boto3.client('s3')
+
+# Function to download files from S3
+def download_file_from_s3(bucket_name, s3_key, output_path):
+    try:
+        s3_client.download_file(bucket_name, s3_key, output_path)
+        print(f"Downloaded {s3_key} from S3 bucket {bucket_name}")
+    except NoCredentialsError:
+        print("Credentials not available")
+
+# Set your S3 bucket name
+bucket_name = 'myfuniversebucket'
+
+# Set the path where you want to save the downloaded models
 model_folder = os.path.join(os.getcwd(), 'Models')
+os.makedirs(model_folder, exist_ok=True)
 
 # Lazy loading models
 @st.cache_resource
 def load_tfv_vectorizer():
-    with gzip.open(os.path.join(model_folder, 'tfv_vectorizer.pkl.gz'), 'rb') as f:
+    model_path = os.path.join(model_folder, 'tfv_vectorizer.pkl.gz')
+    download_file_from_s3(bucket_name, 'Models/tfv_vectorizer.pkl.gz', model_path)
+    with gzip.open(model_path, 'rb') as f:
         return pickle.load(f)
 
 @st.cache_resource
 def load_sigmoid_kernel_matrix():
-    with gzip.open(os.path.join(model_folder, 'sigmoid_kernel_matrix.pkl.gz'), 'rb') as f:
-        matrix = pickle.load(f)
-    
-    # Load the matrix as a Dask array with smaller chunks
-    return da.from_array(matrix, chunks=(100, 100))
+    model_path = os.path.join(model_folder, 'sigmoid_kernel_matrix.pkl.gz')
+    download_file_from_s3(bucket_name, 'Models/sigmoid_kernel_matrix.pkl.gz', model_path)
+
+    # Use joblib to load the array as a memory-mapped file
+    memmap_path = os.path.join(model_folder, 'sigmoid_kernel_matrix_memmap')
+    if not os.path.exists(memmap_path):
+        with gzip.open(model_path, 'rb') as f:
+            matrix = pickle.load(f)
+        dump(matrix, memmap_path)
+    else:
+        matrix = load(memmap_path, mmap_mode='r')
+
+    return da.from_array(matrix, chunks=(250, 250))
 
 @st.cache_resource
 def load_baseline_model():
-    with gzip.open(os.path.join(model_folder, 'baseline_model.pkl.gz'), 'rb') as f:
+    model_path = os.path.join(model_folder, 'baseline_model.pkl.gz')
+    download_file_from_s3(bucket_name, 'Models/baseline_model.pkl.gz', model_path)
+    with gzip.open(model_path, 'rb') as f:
         return pickle.load(f)
 
 # Load models only when needed
 tfv = load_tfv_vectorizer()
-sig = load_sigmoid_kernel_matrix()  # Now loaded with smaller chunks
+sig = load_sigmoid_kernel_matrix()
 best_baseline_model = load_baseline_model()
-
 
 # Drop duplicates and reset index
 rec_data = anime.drop_duplicates(subset="name", keep="first").reset_index(drop=True)
