@@ -6,6 +6,3 @@ dask
 fuzzywuzzy
 setuptools
 pip==24.2
-boto3
-botocore
-joblib
