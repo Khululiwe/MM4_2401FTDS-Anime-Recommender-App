@@ -12,6 +12,8 @@ from io import BytesIO
 from joblib import load, dump
 import boto3
 from botocore.exceptions import NoCredentialsError
+import requests
+
 
 # Define a function to load images
 def load_image(image_path):
@@ -49,40 +51,46 @@ dtype_anime = {
 anime = load_data(os.path.join(data_path, 'anime.zip'), dtype=dtype_anime, sample_size=1000)
 train = load_data(os.path.join(data_path, 'train.zip'), sample_size=50000)
 
-# Initialize the S3 client
-s3_client = boto3.client('s3')
-
-# Function to download files from S3
-def download_file_from_s3(bucket_name, s3_key, local_path):
-    s3 = boto3.client('s3')
-    try:
-        s3.download_file(bucket_name, s3_key, local_path)
-        print(f"Downloaded {s3_key} from bucket {bucket_name} to {local_path}")
-    except Exception as e:
-        print(f"Error downloading {s3_key} from bucket {bucket_name}: {e}")
-
-# Set your S3 bucket name
-bucket_name = 'myfuniversebucket'
-
-# Set the path where you want to create the Models folder
-repo_name = 'MM4_2401FTDS-Anime-Recommender-App'
-model_folder = os.path.join(os.getcwd(), repo_name, 'Models')
+    
+# Set the path where you want to save the downloaded models in your repo
+repo_root = os.path.dirname(os.path.abspath(__file__))  # This points to the directory where your script is located
+model_folder = os.path.join(repo_root, 'Models')
 
 # Create the Models folder if it doesn't exist
 os.makedirs(model_folder, exist_ok=True)
+
+# Create an empty .gitkeep file in the Models folder
+gitkeep_path = os.path.join(model_folder, '.gitkeep')
+with open(gitkeep_path, 'w') as f:
+    pass
+    
+# Function to download files from S3
+def download_file_from_s3_public(url, local_path):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        with open(local_path, 'wb') as f:
+            f.write(response.content)
+        print(f"Downloaded from {url} to {local_path}")
+    except Exception as e:
+        print(f"Error downloading from {url}: {e}")
+
+# Set your S3 bucket name
+bucket_name = 'myfuniversebucket'
+base_url = f'https://{bucket_name}.s3.eu-north-1.amazonaws.com/Models/'
 
 # Lazy loading models
 @st.cache_resource
 def load_tfv_vectorizer():
     model_path = os.path.join(model_folder, 'tfv_vectorizer.pkl.gz')
-    download_file_from_s3(bucket_name, 'Models/tfv_vectorizer.pkl.gz', model_path)
+    download_file_from_s3_public(base_url + 'tfv_vectorizer.pkl.gz', model_path)
     with gzip.open(model_path, 'rb') as f:
         return pickle.load(f)
 
 @st.cache_resource
 def load_sigmoid_kernel_matrix():
     model_path = os.path.join(model_folder, 'sigmoid_kernel_matrix.pkl.gz')
-    download_file_from_s3(bucket_name, 'Models/sigmoid_kernel_matrix.pkl.gz', model_path)
+    download_file_from_s3_public(base_url + 'sigmoid_kernel_matrix.pkl.gz', model_path)
 
     # Use joblib to load the array as a memory-mapped file
     memmap_path = os.path.join(model_folder, 'sigmoid_kernel_matrix_memmap')
@@ -98,7 +106,7 @@ def load_sigmoid_kernel_matrix():
 @st.cache_resource
 def load_baseline_model():
     model_path = os.path.join(model_folder, 'baseline_model.pkl.gz')
-    download_file_from_s3(bucket_name, 'Models/baseline_model.pkl.gz', model_path)
+    download_file_from_s3_public(base_url + 'baseline_model.pkl.gz', model_path)
     with gzip.open(model_path, 'rb') as f:
         return pickle.load(f)
 
@@ -106,6 +114,8 @@ def load_baseline_model():
 tfv = load_tfv_vectorizer()
 sig = load_sigmoid_kernel_matrix()
 best_baseline_model = load_baseline_model()
+
+
 
 # Drop duplicates and reset index
 rec_data = anime.drop_duplicates(subset="name", keep="first").reset_index(drop=True)
@@ -307,7 +317,7 @@ def main():
         # Display team members
         display_team_member("Khululiwe Hlongwane", "Project Manager",
                             "Khululiwe oversees the project's development of the Anime Recommender App.",
-                            img2, "https://www.linkedin.com/in/Khululiwe-Hlongwane/")
+                            img2, "https://www.linkedin.com/in/khululiwe-hlongwane/")
         display_team_member("Judith Kabongo", "Data Scientist",
                             "Judith handles slide decks and presentation communications.",
                             img4, "https://www.linkedin.com/in/Judith-Kabongo-568b581b7/")
