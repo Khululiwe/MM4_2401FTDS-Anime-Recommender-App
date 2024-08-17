@@ -53,18 +53,22 @@ train = load_data(os.path.join(data_path, 'train.zip'), sample_size=50000)
 s3_client = boto3.client('s3')
 
 # Function to download files from S3
-def download_file_from_s3(bucket_name, s3_key, output_path):
+def download_file_from_s3(bucket_name, s3_key, local_path):
+    s3 = boto3.client('s3')
     try:
-        s3_client.download_file(bucket_name, s3_key, output_path)
-        print(f"Downloaded {s3_key} from S3 bucket {bucket_name}")
-    except NoCredentialsError:
-        print("Credentials not available")
+        s3.download_file(bucket_name, s3_key, local_path)
+        print(f"Downloaded {s3_key} from bucket {bucket_name} to {local_path}")
+    except Exception as e:
+        print(f"Error downloading {s3_key} from bucket {bucket_name}: {e}")
 
 # Set your S3 bucket name
 bucket_name = 'myfuniversebucket'
 
-# Set the path where you want to save the downloaded models
-model_folder = os.path.join(os.getcwd(), 'Models')
+# Set the path where you want to create the Models folder
+repo_name = 'MM4_2401FTDS-Anime-Recommender-App'
+model_folder = os.path.join(os.getcwd(), repo_name, 'Models')
+
+# Create the Models folder if it doesn't exist
 os.makedirs(model_folder, exist_ok=True)
 
 # Lazy loading models
