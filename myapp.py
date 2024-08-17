@@ -1,15 +1,12 @@
 import streamlit as st
 import pandas as pd
-import gdown
-import zipfile
 from PIL import Image
 import os
 import gzip
 import pickle
 import dask.array as da
 from fuzzywuzzy import fuzz
-from io import BytesIO
-from joblib import load, dump
+import zipfile
 
 # Define a function to load images
 def load_image(image_path):
@@ -23,86 +20,58 @@ img3 = load_image(os.path.join(images_path, 'img3.jpeg'))
 img4 = load_image(os.path.join(images_path, 'img4.jpeg'))
 img5 = load_image(os.path.join(images_path, 'img5.jpeg'))
 
-# Function to download and unzip files from Google Drive
-def download_and_unzip_file_from_drive(file_id, output_name, extract_to):
-    url = f"https://drive.google.com/uc?id={file_id}"
-    zip_path = gdown.download(url, output_name, quiet=False)
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_to)
-    return extract_to
-
 # Define the path to your data folder
-data_path = os.path.join(os.getcwd(), 'Anime', 'Data')  # Adjust this if your data is stored differently
+data_path = os.path.join(os.getcwd(), 'Data')
 
 @st.cache_data
-def load_anime_data_from_drive(file_id, dtype=None, sample_size=None, random_state=42):
-    extract_to = download_and_unzip_file_from_drive(file_id, 'anime.zip', data_path)
-    csv_path = os.path.join(extract_to, 'anime.csv')  # Ensure this is the correct file name
-    if os.path.exists(csv_path):
-        df = pd.read_csv(csv_path, dtype=dtype)  # No need to use gzip.open since it's not gzipped
-        if sample_size:
-            return df.sample(n=sample_size, random_state=random_state)
-        return df
-    else:
-        raise FileNotFoundError(f"File not found: {csv_path}")
+def load_data(file_name, dtype=None, sample_size=None, random_state=42):
+    zip_path = os.path.join(data_path, f'{file_name}.zip')
+    extract_to = data_path
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(extract_to)
+    
+    csv_path = os.path.join(extract_to, f'{file_name}.csv')
+    df = pd.read_csv(csv_path, dtype=dtype)
+    
+    if sample_size:
+        return df.sample(n=sample_size, random_state=random_state)
+    return df
 
 # Define dtypes for columns
 dtype_anime = {
     'episodes': 'object',
 }
 
-@st.cache_data
-def load_train_data_from_drive(file_id, dtype=None, sample_size=None, random_state=42):
-    extract_to = download_and_unzip_file_from_drive(file_id, 'train.zip', data_path)
-    csv_path = os.path.join(extract_to, 'train.csv')  # Ensure this is the correct file name
-    if os.path.exists(csv_path):
-        df = pd.read_csv(csv_path, dtype=dtype)  # No need to use gzip.open since it's not gzipped
-        if sample_size:
-            return df.sample(n=sample_size, random_state=random_state)
-        return df
-    else:
-        raise FileNotFoundError(f"File not found: {csv_path}")
-
 # Load sampled anime and train datasets
-anime = load_anime_data_from_drive('1mnaNLptvbR42b860oGTDz1BWLfbBf3Pt', dtype=dtype_anime, sample_size=1000)
-train = load_train_data_from_drive('1JxBbumLNL4r264uQUa7nX9WjssE2Zenf', sample_size=50000)
-model_folder = os.path.join(os.getcwd(), 'Anime', 'Models')  # Adjust if models are stored differently
+anime = load_data('anime', dtype=dtype_anime, sample_size=1000)
+train = load_data('train', sample_size=50000)
+
+model_folder = os.path.join(os.getcwd(), 'Models')
 
 # Lazy loading models
 @st.cache_resource
 def load_tfv_vectorizer():
-    extract_to = download_and_unzip_file_from_drive('14F3CyYylEwkD5mfUohjhxaE-cPY2_Oul', 'tfv_vectorizer.zip', model_folder)
-    model_path = os.path.join(extract_to, 'tfv_vectorizer.pkl.gz')
-    with gzip.open(model_path, 'rb') as f:
+    with gzip.open(os.path.join(model_folder, 'tfv_vectorizer.pkl.gz'), 'rb') as f:
         return pickle.load(f)
-
 
 @st.cache_resource
 def load_sigmoid_kernel_matrix():
-    extract_to = download_and_unzip_file_from_drive('1w7xBJId_2lqF2QzP_jZNjtXNXpHQl719', 'sigmoid_kernel_matrix.zip', model_folder)
-    model_path = os.path.join(extract_to, 'sigmoid_kernel_matrix.pkl.gz')
-
-    # Use joblib to load the array as a memory-mapped file
-    if not os.path.exists('sigmoid_kernel_matrix_memmap'):
-        with gzip.open(model_path, 'rb') as f:
-            matrix = pickle.load(f)
-        dump(matrix, 'sigmoid_kernel_matrix_memmap')
-    else:
-        matrix = load('sigmoid_kernel_matrix_memmap', mmap_mode='r')
-
-    return da.from_array(matrix, chunks=(250, 250))
+    with gzip.open(os.path.join(model_folder, 'sigmoid_kernel_matrix.pkl.gz'), 'rb') as f:
+        matrix = pickle.load(f)
+    
+    # Load the matrix as a Dask array with smaller chunks
+    return da.from_array(matrix, chunks=(100, 100))
 
 @st.cache_resource
 def load_baseline_model():
-    extract_to = download_and_unzip_file_from_drive('12Kvk2Khz279QhHLOYJ3dnbri5Ek1FxrY', 'baseline_model.zip', model_folder)
-    model_path = os.path.join(extract_to, 'baseline_model.pkl.gz')
-    with gzip.open(model_path, 'rb') as f:
+    with gzip.open(os.path.join(model_folder, 'baseline_model.pkl.gz'), 'rb') as f:
         return pickle.load(f)
 
 # Load models only when needed
 tfv = load_tfv_vectorizer()
-sig = load_sigmoid_kernel_matrix()
+sig = load_sigmoid_kernel_matrix()  # Now loaded with smaller chunks
 best_baseline_model = load_baseline_model()
+
 
 # Drop duplicates and reset index
 rec_data = anime.drop_duplicates(subset="name", keep="first").reset_index(drop=True)
