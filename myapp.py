@@ -9,6 +9,7 @@ import pickle
 import dask.array as da
 from fuzzywuzzy import fuzz
 from io import BytesIO
+from joblib import load, dump
 
 # Define a function to load images
 def load_image(image_path):
@@ -22,7 +23,7 @@ img3 = load_image(os.path.join(images_path, 'img3.jpeg'))
 img4 = load_image(os.path.join(images_path, 'img4.jpeg'))
 img5 = load_image(os.path.join(images_path, 'img5.jpeg'))
 
-# Function to download files from Google Drive using gdown and unzip
+# Function to download and unzip files from Google Drive
 def download_and_unzip_file_from_drive(file_id, output_name, extract_to):
     url = f"https://drive.google.com/uc?id={file_id}"
     zip_path = gdown.download(url, output_name, quiet=False)
@@ -31,27 +32,41 @@ def download_and_unzip_file_from_drive(file_id, output_name, extract_to):
     return extract_to
 
 # Define the path to your data folder
-data_path = os.path.join(os.getcwd(), 'Anime/Data')  # Adjust this if your data is stored differently
+data_path = os.path.join(os.getcwd(), 'Anime', 'Data')  # Adjust this if your data is stored differently
 
 @st.cache_data
-def load_data_from_drive(file_id, dtype=None, sample_size=None, random_state=42):
-    extract_to = download_and_unzip_file_from_drive(file_id, 'data.zip', 'Data')
-    csv_path = os.path.join(extract_to, 'data.csv.gz')
-    with gzip.open(csv_path, 'rb') as f:
-        df = pd.read_csv(f, dtype=dtype)
-    if sample_size:
-        return df.sample(n=sample_size, random_state=random_state)
-    return df
+def load_anime_data_from_drive(file_id, dtype=None, sample_size=None, random_state=42):
+    extract_to = download_and_unzip_file_from_drive(file_id, 'anime.zip', data_path)
+    csv_path = os.path.join(extract_to, 'anime.csv')  # Ensure this is the correct file name
+    if os.path.exists(csv_path):
+        df = pd.read_csv(csv_path, dtype=dtype)  # No need to use gzip.open since it's not gzipped
+        if sample_size:
+            return df.sample(n=sample_size, random_state=random_state)
+        return df
+    else:
+        raise FileNotFoundError(f"File not found: {csv_path}")
 
 # Define dtypes for columns
 dtype_anime = {
     'episodes': 'object',
 }
 
+@st.cache_data
+def load_train_data_from_drive(file_id, dtype=None, sample_size=None, random_state=42):
+    extract_to = download_and_unzip_file_from_drive(file_id, 'train.zip', data_path)
+    csv_path = os.path.join(extract_to, 'train.csv')  # Ensure this is the correct file name
+    if os.path.exists(csv_path):
+        df = pd.read_csv(csv_path, dtype=dtype)  # No need to use gzip.open since it's not gzipped
+        if sample_size:
+            return df.sample(n=sample_size, random_state=random_state)
+        return df
+    else:
+        raise FileNotFoundError(f"File not found: {csv_path}")
+
 # Load sampled anime and train datasets
-anime = load_data_from_drive('1mnaNLptvbR42b860oGTDz1BWLfbBf3Pt', dtype=dtype_anime, sample_size=1000)
-train = load_data_from_drive('1JxBbumLNL4r264uQUa7nX9WjssE2Zenf', sample_size=50000)
-model_folder = os.path.join(os.getcwd(), 'Anime/Models')  # Adjust if models are stored differently
+anime = load_anime_data_from_drive('1mnaNLptvbR42b860oGTDz1BWLfbBf3Pt', dtype=dtype_anime, sample_size=1000)
+train = load_train_data_from_drive('1JxBbumLNL4r264uQUa7nX9WjssE2Zenf', sample_size=50000)
+model_folder = os.path.join(os.getcwd(), 'Anime', 'Models')  # Adjust if models are stored differently
 
 # Lazy loading models
 @st.cache_resource
@@ -61,12 +76,20 @@ def load_tfv_vectorizer():
     with gzip.open(model_path, 'rb') as f:
         return pickle.load(f)
 
+
 @st.cache_resource
 def load_sigmoid_kernel_matrix():
     extract_to = download_and_unzip_file_from_drive('1w7xBJId_2lqF2QzP_jZNjtXNXpHQl719', 'sigmoid_kernel_matrix.zip', model_folder)
     model_path = os.path.join(extract_to, 'sigmoid_kernel_matrix.pkl.gz')
-    with gzip.open(model_path, 'rb') as f:
-        matrix = pickle.load(f)
+
+    # Use joblib to load the array as a memory-mapped file
+    if not os.path.exists('sigmoid_kernel_matrix_memmap'):
+        with gzip.open(model_path, 'rb') as f:
+            matrix = pickle.load(f)
+        dump(matrix, 'sigmoid_kernel_matrix_memmap')
+    else:
+        matrix = load('sigmoid_kernel_matrix_memmap', mmap_mode='r')
+
     return da.from_array(matrix, chunks=(250, 250))
 
 @st.cache_resource
