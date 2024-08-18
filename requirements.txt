@@ -15,3 +15,4 @@ joblib==1.4.2
 # Other required libraries
 boto3==1.35.0  # AWS SDK for Python, in case you're using S3
 python-levenshtein==0.25.1  # Required by fuzzywuzzy
+distutils  # For package management and distribution
