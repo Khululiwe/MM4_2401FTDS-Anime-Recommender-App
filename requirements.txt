@@ -1,5 +1,5 @@
 # Essential libraries for your Streamlit app
-streamlit==1.25.0  # Ensure Streamlit is installed
+streamlit==1.37.1  # Ensure Streamlit is installed
 gdown==5.2.0  # For downloading files
 Pillow==9.5.0  # Compatible version for Streamlit
 pandas==1.5.3  # Data handling and manipulation
