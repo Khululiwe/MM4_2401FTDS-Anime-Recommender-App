@@ -1,6 +1,9 @@
 import subprocess
 import sys
 
+# Add your desired path to the system path
+sys.path.insert(0, r'C:\Users\khulu\AppData\Roaming\Python\Python38\Scripts')
+
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
