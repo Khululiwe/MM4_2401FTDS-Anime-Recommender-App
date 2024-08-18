@@ -1,9 +1,6 @@
 import subprocess
 import sys
 
-# Add your desired path to the system path
-sys.path.insert(0, r'C:\Users\khulu\AppData\Roaming\Python\Python38\Scripts')
-
 def install(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
@@ -11,18 +8,19 @@ def upgrade_pip():
     # Upgrade pip first
     subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
 
-def ensure_setuptools():
+def ensure_distutils():
     try:
-        import setuptools
+        import distutils
     except ImportError:
-        install('setuptools')
+        # Install setuptools, which includes distutils
+        install("setuptools")
 
 def main():
-    # Ensure setuptools is installed
-    ensure_setuptools()
-
     # Upgrade pip
     upgrade_pip()
+    
+    # Ensure distutils is available
+    ensure_distutils()
     
     # Install required packages
     packages = [
