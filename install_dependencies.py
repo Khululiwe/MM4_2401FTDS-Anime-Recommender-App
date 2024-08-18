@@ -8,7 +8,16 @@ def upgrade_pip():
     # Upgrade pip first
     subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
 
+def ensure_setuptools():
+    try:
+        import setuptools
+    except ImportError:
+        install('setuptools')
+
 def main():
+    # Ensure setuptools is installed
+    ensure_setuptools()
+
     # Upgrade pip
     upgrade_pip()
     
