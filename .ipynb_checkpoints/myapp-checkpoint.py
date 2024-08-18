@@ -10,6 +10,10 @@ import dask.array as da
 from fuzzywuzzy import fuzz
 from io import BytesIO
 from joblib import load, dump
+import boto3
+from botocore.exceptions import NoCredentialsError
+import requests
+
 
 # Define a function to load images
 def load_image(image_path):
@@ -23,79 +27,86 @@ img3 = load_image(os.path.join(images_path, 'img3.jpeg'))
 img4 = load_image(os.path.join(images_path, 'img4.jpeg'))
 img5 = load_image(os.path.join(images_path, 'img5.jpeg'))
 
-# Function to download and unzip files from Google Drive
-def download_and_unzip_file_from_drive(file_id, output_name, extract_to):
-    url = f"https://drive.google.com/uc?id={file_id}"
-    zip_path = gdown.download(url, output_name, quiet=False)
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_to)
-    return extract_to
-
 # Define the path to your data folder
-data_path = os.path.join(os.getcwd(), 'Anime', 'Data')  # Adjust this if your data is stored differently
+data_path = os.path.join(os.getcwd(), 'Data')
 
 @st.cache_data
-def load_anime_data_from_drive(file_id, dtype=None, sample_size=None, random_state=42):
-    extract_to = download_and_unzip_file_from_drive(file_id, 'anime.zip', data_path)
-    csv_path = os.path.join(extract_to, 'anime.csv')  # Ensure this is the correct file name
-    if os.path.exists(csv_path):
-        df = pd.read_csv(csv_path, dtype=dtype)  # No need to use gzip.open since it's not gzipped
-        if sample_size:
-            return df.sample(n=sample_size, random_state=random_state)
-        return df
-    else:
-        raise FileNotFoundError(f"File not found: {csv_path}")
+def load_data(file, dtype=None, sample_size=None, random_state=42):
+    # Extract the zip file if it exists
+    if file.endswith('.zip'):
+        with zipfile.ZipFile(file, 'r') as zip_ref:
+            zip_ref.extractall(data_path)
+        file = file.replace('.zip', '.csv')
+    df = pd.read_csv(file, dtype=dtype)
+    if sample_size:
+        return df.sample(n=sample_size, random_state=random_state)
+    return df
 
 # Define dtypes for columns
 dtype_anime = {
     'episodes': 'object',
 }
 
-@st.cache_data
-def load_train_data_from_drive(file_id, dtype=None, sample_size=None, random_state=42):
-    extract_to = download_and_unzip_file_from_drive(file_id, 'train.zip', data_path)
-    csv_path = os.path.join(extract_to, 'train.csv')  # Ensure this is the correct file name
-    if os.path.exists(csv_path):
-        df = pd.read_csv(csv_path, dtype=dtype)  # No need to use gzip.open since it's not gzipped
-        if sample_size:
-            return df.sample(n=sample_size, random_state=random_state)
-        return df
-    else:
-        raise FileNotFoundError(f"File not found: {csv_path}")
-
 # Load sampled anime and train datasets
-anime = load_anime_data_from_drive('1mnaNLptvbR42b860oGTDz1BWLfbBf3Pt', dtype=dtype_anime, sample_size=1000)
-train = load_train_data_from_drive('1JxBbumLNL4r264uQUa7nX9WjssE2Zenf', sample_size=50000)
-model_folder = os.path.join(os.getcwd(), 'Anime', 'Models')  # Adjust if models are stored differently
+anime = load_data(os.path.join(data_path, 'anime.zip'), dtype=dtype_anime, sample_size=1000)
+train = load_data(os.path.join(data_path, 'train.zip'), sample_size=50000)
+
+    
+# Set the path where you want to save the downloaded models in your repo
+repo_root = os.path.dirname(os.path.abspath(__file__))  # This points to the directory where your script is located
+model_folder = os.path.join(repo_root, 'Models')
+
+# Create the Models folder if it doesn't exist
+os.makedirs(model_folder, exist_ok=True)
+
+# Create an empty .gitkeep file in the Models folder
+gitkeep_path = os.path.join(model_folder, '.gitkeep')
+with open(gitkeep_path, 'w') as f:
+    pass
+    
+# Function to download files from S3
+def download_file_from_s3_public(url, local_path):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        with open(local_path, 'wb') as f:
+            f.write(response.content)
+        print(f"Downloaded from {url} to {local_path}")
+    except Exception as e:
+        print(f"Error downloading from {url}: {e}")
+
+# Set your S3 bucket name
+bucket_name = 'myfuniversebucket'
+base_url = f'https://{bucket_name}.s3.eu-north-1.amazonaws.com/Models/'
 
 # Lazy loading models
 @st.cache_resource
 def load_tfv_vectorizer():
-    extract_to = download_and_unzip_file_from_drive('14F3CyYylEwkD5mfUohjhxaE-cPY2_Oul', 'tfv_vectorizer.zip', model_folder)
-    model_path = os.path.join(extract_to, 'tfv_vectorizer.pkl.gz')
+    model_path = os.path.join(model_folder, 'tfv_vectorizer.pkl.gz')
+    download_file_from_s3_public(base_url + 'tfv_vectorizer.pkl.gz', model_path)
     with gzip.open(model_path, 'rb') as f:
         return pickle.load(f)
 
-
 @st.cache_resource
 def load_sigmoid_kernel_matrix():
-    extract_to = download_and_unzip_file_from_drive('1w7xBJId_2lqF2QzP_jZNjtXNXpHQl719', 'sigmoid_kernel_matrix.zip', model_folder)
-    model_path = os.path.join(extract_to, 'sigmoid_kernel_matrix.pkl.gz')
+    model_path = os.path.join(model_folder, 'sigmoid_kernel_matrix.pkl.gz')
+    download_file_from_s3_public(base_url + 'sigmoid_kernel_matrix.pkl.gz', model_path)
 
     # Use joblib to load the array as a memory-mapped file
-    if not os.path.exists('sigmoid_kernel_matrix_memmap'):
+    memmap_path = os.path.join(model_folder, 'sigmoid_kernel_matrix_memmap')
+    if not os.path.exists(memmap_path):
         with gzip.open(model_path, 'rb') as f:
             matrix = pickle.load(f)
-        dump(matrix, 'sigmoid_kernel_matrix_memmap')
+        dump(matrix, memmap_path)
     else:
-        matrix = load('sigmoid_kernel_matrix_memmap', mmap_mode='r')
+        matrix = load(memmap_path, mmap_mode='r')
 
     return da.from_array(matrix, chunks=(250, 250))
 
 @st.cache_resource
 def load_baseline_model():
-    extract_to = download_and_unzip_file_from_drive('12Kvk2Khz279QhHLOYJ3dnbri5Ek1FxrY', 'baseline_model.zip', model_folder)
-    model_path = os.path.join(extract_to, 'baseline_model.pkl.gz')
+    model_path = os.path.join(model_folder, 'baseline_model.pkl.gz')
+    download_file_from_s3_public(base_url + 'baseline_model.pkl.gz', model_path)
     with gzip.open(model_path, 'rb') as f:
         return pickle.load(f)
 
@@ -103,6 +114,8 @@ def load_baseline_model():
 tfv = load_tfv_vectorizer()
 sig = load_sigmoid_kernel_matrix()
 best_baseline_model = load_baseline_model()
+
+
 
 # Drop duplicates and reset index
 rec_data = anime.drop_duplicates(subset="name", keep="first").reset_index(drop=True)
@@ -304,7 +317,7 @@ def main():
         # Display team members
         display_team_member("Khululiwe Hlongwane", "Project Manager",
                             "Khululiwe oversees the project's development of the Anime Recommender App.",
-                            img2, "https://www.linkedin.com/in/Khululiwe-Hlongwane/")
+                            img2, "https://www.linkedin.com/in/khululiwe-hlongwane/")
         display_team_member("Judith Kabongo", "Data Scientist",
                             "Judith handles slide decks and presentation communications.",
                             img4, "https://www.linkedin.com/in/Judith-Kabongo-568b581b7/")
