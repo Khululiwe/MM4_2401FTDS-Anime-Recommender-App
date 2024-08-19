@@ -10,8 +10,9 @@ dask==2023.5.0  # For parallel computing, useful for large datasets
 fuzzywuzzy==0.18.0  # For string matching
 setuptools==68.0.0  # For package management
 pip==24.2  # Python package installer
-joblib==1.4.2
+joblib==1.4.2  # For model serialization
 
 # Other required libraries
 boto3==1.35.0  # AWS SDK for Python, in case you're using S3
 python-levenshtein==0.25.1  # Required by fuzzywuzzy
+wheel==0.40.0  # For building and packaging
