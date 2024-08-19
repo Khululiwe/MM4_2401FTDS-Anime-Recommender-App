@@ -63,9 +63,8 @@ Once the app is running, users can:
 
 Khululiwe Hlongwane - Project Manager
 
-Ntembeko Mhlungu - Streamlit Manager
-
+Ntembeko Mhlungu - Data Scientist
 
 Judith Kabongo - Data Scientist
 
-Tselani Moeti - Machine Learning Engineer
+Tselani Moeti - Github Manager
