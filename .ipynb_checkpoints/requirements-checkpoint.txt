@@ -8,7 +8,7 @@ scikit-surprise==1.1.4  # For collaborative filtering and recommender systems
 numpy==1.24.3  # Numerical operations
 dask==2023.5.0  # For parallel computing, useful for large datasets
 fuzzywuzzy==0.18.0  # For string matching
-setuptools==68.0.0  # For package management
+setuptools==72.2.0  # For package management
 pip==24.2  # Python package installer
 joblib==1.4.2  # For model serialization
 
