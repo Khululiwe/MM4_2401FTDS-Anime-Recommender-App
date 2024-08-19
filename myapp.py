@@ -1,11 +1,3 @@
-import subprocess
-import sys
-import os
-
-# Run install_dependencies.py
-if os.path.exists('install_dependencies.py'):
-    subprocess.check_call([sys.executable, 'install_dependencies.py'])
-
 # The rest of your Streamlit app code follows
 import streamlit as st
 import pandas as pd
