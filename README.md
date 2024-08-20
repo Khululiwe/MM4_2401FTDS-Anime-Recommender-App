@@ -1,4 +1,9 @@
-## Anime Recommender App - DataPrism Team <a class="anchor" id="project-description"></a>
+## Funiverse Network Anime Recommender App - DataPrism Team <a class="anchor" id="project-description"></a>
+
+<p align="center">
+  <img src="https://github.com/Khululiwe/MM4_2401FTDS-Anime-Recommender-App/blob/main/Images/anime2.png" alt="Logo" width="400"/>
+</p>
+
 ## Project Overview <a class="anchor" id="project-description"></a>
 
 DataPrism team has been hired as data science consultants for an anime streaming platform. Our task is to create personalized anime recommender models using Python and deploy them as a user-friendly web application with Streamlit. This application will help users discover new anime based on their preferences and past interactions, enhancing their viewing experience.
